@@ -2,17 +2,86 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
 
 namespace LiteDB.Demo
 {
+    public struct TestStruct
+    {
+        public int A { get; set; }
+    }
+    public class TestDocument
+    {
+        [BsonId]
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public string Name { get; set; }
+        
+    }
+
+    public class PropertyDocument<T> : PropertyDocument
+    {
+        public T Data { get; set; }
+    }
+
+    public class PropertyDocument
+    {
+        [BsonId]
+        public Guid Id { get; set; }
+        public string Name { get; set; }
+        public int Version { get; set; }
+        public DateTime LastWrite { get; set; }
+    }
+
+    public class GlobalSettingsData
+    {
+        public Color UiColor { get; set; }
+
+        public string FeedbackEmailAdress { get; set; }
+
+        public bool IsEquivalentTo(object other)
+        {
+            if (ReferenceEquals(this, other)) return true;
+            if (!(other is GlobalSettingsData casted)) return false;
+
+            return UiColor.Equals(casted.UiColor) &&
+                   string.Equals(FeedbackEmailAdress, casted.FeedbackEmailAdress);
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
         {
+            File.Delete("C:\\Temp\\bla.db");
+            Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+            using (LiteDatabase db = new LiteDatabase("C:\\Temp\\bla.db"))
+            {
+                LiteCollection<PropertyDocument<GlobalSettingsData>> liteCollection = db.GetCollection<PropertyDocument<GlobalSettingsData>>("PropertyDocuments");
+                liteCollection.Upsert(new PropertyDocument<GlobalSettingsData>
+                {
+                    Name = "GlobalStyleSettings",
+                    Data = new GlobalSettingsData() {UiColor = Colors.Yellow, FeedbackEmailAdress = "a@b.d"},
+                    LastWrite = DateTime.UtcNow
+                });
+
+                liteCollection.EnsureIndex(doc => doc.Name);
+                liteCollection.EnsureIndex(doc => doc.Version);
+            }
+
+            Thread.CurrentThread.CurrentCulture = new CultureInfo("cs-CZ");
+            using (LiteDatabase db = new LiteDatabase("C:\\Temp\\Customizing_1.ecdc"))
+            {
+                LiteCollection<PropertyDocument<GlobalSettingsData>> collection = db.GetCollection<PropertyDocument<GlobalSettingsData>>("PropertyDocuments");
+                var blub = collection.FindAll().ToList();
+                var bla = collection.FindOne(x => x.Name == "GlobalSettings" && x.Version == 0);
+            }
+
             var timer = new Stopwatch();
             ITest test = new LiteDB_Paging();
             //ITest test = new SQLite_Paging();

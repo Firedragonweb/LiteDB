@@ -23,5 +23,9 @@
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+  </ItemGroup>
   
 </Project>

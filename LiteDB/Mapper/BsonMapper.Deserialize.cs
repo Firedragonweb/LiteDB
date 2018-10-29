@@ -11,32 +11,32 @@ namespace LiteDB
         /// <summary>
         /// Deserialize a BsonDocument to entity class
         /// </summary>
-        public virtual object ToObject(Type type, BsonDocument doc)
+        public virtual object ToObject(Type type, BsonDocument doc, IDictionary<Type, Type> typeReplacement = null)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
 
             // if T is BsonDocument, just return them
             if (type == typeof(BsonDocument)) return doc;
 
-            return this.Deserialize(type, doc);
+            return this.Deserialize(type, doc, typeReplacement);
         }
 
         /// <summary>
         /// Deserialize a BsonDocument to entity class
         /// </summary>
-        public virtual T ToObject<T>(BsonDocument doc)
+        public virtual T ToObject<T>(BsonDocument doc, IDictionary<Type, Type> typeReplacement = null)
         {
-            return (T)this.ToObject(typeof(T), doc);
+            return (T)this.ToObject(typeof(T), doc, typeReplacement);
         }
 
         /// <summary>
         /// Deserialize an BsonValue to .NET object typed in T
         /// </summary>
-        internal T Deserialize<T>(BsonValue value)
+        internal T Deserialize<T>(BsonValue value, IDictionary<Type, Type> typeReplacement)
         {
             if (value == null) return default(T);
 
-            var result = this.Deserialize(typeof(T), value);
+            var result = this.Deserialize(typeof(T), value, typeReplacement);
 
             return (T)result;
         }
@@ -72,7 +72,7 @@ namespace LiteDB
 
         #endregion
 
-        internal object Deserialize(Type type, BsonValue value)
+        internal object Deserialize(Type type, BsonValue value, IDictionary<Type, Type> typeReplacement)
         {
             Func<BsonValue, object> custom;
 
@@ -135,15 +135,15 @@ namespace LiteDB
                 // when array are from an object (like in Dictionary<string, object> { ["array"] = new string[] { "a", "b" } 
                 if (type == typeof(object))
                 {
-                    return this.DeserializeArray(typeof(object), value.AsArray);
+                    return this.DeserializeArray(typeof(object), value.AsArray, typeReplacement);
                 }
                 if (type.IsArray)
                 {
-                    return this.DeserializeArray(type.GetElementType(), value.AsArray);
+                    return this.DeserializeArray(type.GetElementType(), value.AsArray, typeReplacement);
                 }
                 else
                 {
-                    return this.DeserializeList(type, value.AsArray);
+                    return this.DeserializeList(type, value.AsArray, typeReplacement);
                 }
             }
 
@@ -157,7 +157,6 @@ namespace LiteDB
                 if (doc.RawValue.TryGetValue("_type", out typeField))
                 {
                     type = Type.GetType(typeField.AsString);
-
                     if (type == null) throw LiteException.InvalidTypedName(typeField.AsString);
                 }
                 // when complex type has no definition (== typeof(object)) use Dictionary<string, object> to better set values
@@ -166,6 +165,8 @@ namespace LiteDB
                     type = typeof(Dictionary<string, object>);
                 }
 
+                if (typeReplacement != null && typeReplacement.ContainsKey(type))
+                    type = typeReplacement[type];
                 var o = _typeInstantiator(type);
 
                 if (o is IDictionary && type.GetTypeInfo().IsGenericType)
@@ -173,11 +174,11 @@ namespace LiteDB
                     var k = type.GetTypeInfo().GetGenericArguments()[0];
                     var t = type.GetTypeInfo().GetGenericArguments()[1];
 
-                    this.DeserializeDictionary(k, t, (IDictionary)o, value.AsDocument);
+                    this.DeserializeDictionary(k, t, (IDictionary)o, value.AsDocument, typeReplacement);
                 }
                 else
                 {
-                    this.DeserializeObject(type, o, doc);
+                    this.DeserializeObject(type, o, doc, typeReplacement);
                 }
 
                 return o;
@@ -188,20 +189,20 @@ namespace LiteDB
             return value.RawValue;
         }
 
-        private object DeserializeArray(Type type, BsonArray array)
+        private object DeserializeArray(Type type, BsonArray array, IDictionary<Type, Type> typeReplacement)
         {
             var arr = Array.CreateInstance(type, array.Count);
             var idx = 0;
 
             foreach (var item in array)
             {
-                arr.SetValue(this.Deserialize(type, item), idx++);
+                arr.SetValue(this.Deserialize(type, item, typeReplacement), idx++);
             }
 
             return arr;
         }
 
-        private object DeserializeList(Type type, BsonArray value)
+        private object DeserializeList(Type type, BsonArray value, IDictionary<Type, Type> typeReplacement)
         {
             var itemType = Reflection.GetListItemType(type);
             var enumerable = (IEnumerable)Reflection.CreateInstance(type);
@@ -211,7 +212,7 @@ namespace LiteDB
             {
                 foreach (BsonValue item in value)
                 {
-                    list.Add(Deserialize(itemType, item));
+                    list.Add(Deserialize(itemType, item, typeReplacement));
                 }
             }
             else
@@ -220,25 +221,25 @@ namespace LiteDB
 
                 foreach (BsonValue item in value)
                 {
-                    addMethod.Invoke(enumerable, new[] { Deserialize(itemType, item) });
+                    addMethod.Invoke(enumerable, new[] { Deserialize(itemType, item, typeReplacement) });
                 }
             }
 
             return enumerable;
         }
 
-        private void DeserializeDictionary(Type K, Type T, IDictionary dict, BsonDocument value)
+        private void DeserializeDictionary(Type K, Type T, IDictionary dict, BsonDocument value, IDictionary<Type, Type> typeReplacement)
         {
             foreach (var key in value.Keys)
             {
                 var k = K.GetTypeInfo().IsEnum ? Enum.Parse(K, key) : Convert.ChangeType(key, K);
-                var v = this.Deserialize(T, value[key]);
+                var v = this.Deserialize(T, value[key], typeReplacement);
 
                 dict.Add(k, v);
             }
         }
 
-        private void DeserializeObject(Type type, object obj, BsonDocument value)
+        private void DeserializeObject(Type type, object obj, BsonDocument value, IDictionary<Type, Type> typeReplacement)
         {
             var entity = this.GetEntityMapper(type);
 
@@ -255,7 +256,7 @@ namespace LiteDB
                     }
                     else
                     {
-                        member.Setter(obj, this.Deserialize(member.DataType, val));
+                        member.Setter(obj, this.Deserialize(member.DataType, val, typeReplacement));
                     }
                 }
             }

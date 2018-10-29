@@ -418,7 +418,7 @@ namespace LiteDB
                 return m.Deserialize(entity.ForType,
                     idRef.IsNull ?
                     bson : // if has no $id object was full loaded (via Include) - so deserialize using normal function
-                    new BsonDocument { { "_id", idRef } }); // if has $id, deserialize object using only _id object
+                    new BsonDocument { { "_id", idRef } }, null); // if has $id, deserialize object using only _id object
             };
         }
 
@@ -458,7 +458,7 @@ namespace LiteDB
             {
                 var array = bson.AsArray;
 
-                if (array.Count == 0) return m.Deserialize(member.DataType, array);
+                if (array.Count == 0) return m.Deserialize(member.DataType, array, null);
 
                 // copy array changing $id to _id
                 var result = new BsonArray();
@@ -479,7 +479,7 @@ namespace LiteDB
 
                 }
 
-                return m.Deserialize(member.DataType, result);
+                return m.Deserialize(member.DataType, result, null);
             };
         }
 

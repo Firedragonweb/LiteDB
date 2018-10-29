@@ -42,7 +42,7 @@ namespace LiteDB
         internal override bool FilterDocument(BsonDocument doc)
         {
             // must deserialize documento into class T to apply _where func
-            var obj = _mapper.ToObject<T>(doc);
+            var obj = _mapper.ToObject<T>(doc, null);
 
             return _where(obj);
         }

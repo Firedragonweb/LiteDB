@@ -15,6 +15,7 @@ namespace LiteDB
         private LiteCollection<T> _collection;
         private List<Action<T, int>> _foreach;
         private Query _query;
+        private IDictionary<Type, Type> _typeReplacement;
 
         internal LiteQueryable(LiteCollection<T> collection)
         {
@@ -31,6 +32,15 @@ namespace LiteDB
         public LiteQueryable<T> Include<K>(Expression<Func<T, K>> dbref)
         {
             _collection = _collection.Include(dbref);
+            return this;
+        }
+
+        /// <summary>
+        /// Include type replacement in result query execution
+        /// </summary>
+        public LiteQueryable<T> WithTypeReplacement(IDictionary<Type, Type> typeReplacement)
+        {
+            _typeReplacement = typeReplacement;
             return this;
         }
 
@@ -161,7 +171,7 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<T> ToEnumerable()
         {
-            var items = _collection.Find(_query ?? Query.All(), _skip, _limit);
+            var items = _collection.Find(_query ?? Query.All(), _skip, _limit, _typeReplacement);
 
             foreach(var item in items)
             {
