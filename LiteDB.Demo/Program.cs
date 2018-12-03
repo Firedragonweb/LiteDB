@@ -59,28 +59,56 @@ namespace LiteDB.Demo
         static void Main(string[] args)
         {
             File.Delete("C:\\Temp\\bla.db");
-            Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+            //Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
             using (LiteDatabase db = new LiteDatabase("C:\\Temp\\bla.db"))
             {
                 LiteCollection<PropertyDocument<GlobalSettingsData>> liteCollection = db.GetCollection<PropertyDocument<GlobalSettingsData>>("PropertyDocuments");
                 liteCollection.Upsert(new PropertyDocument<GlobalSettingsData>
                 {
                     Name = "GlobalStyleSettings",
-                    Data = new GlobalSettingsData() {UiColor = Colors.Yellow, FeedbackEmailAdress = "a@b.d"},
+                    Version = 0,
+                    Data = new GlobalSettingsData() { UiColor = Colors.Yellow, FeedbackEmailAdress = "a@b.d" },
+                    LastWrite = DateTime.UtcNow - TimeSpan.FromHours(1)
+                });
+                liteCollection.Upsert(new PropertyDocument<GlobalSettingsData>
+                {
+                    Name = "GlobalStyleSettings",
+                    Version = 1,
+                    Data = new GlobalSettingsData() { UiColor = Colors.Green, FeedbackEmailAdress = "a@b.de" },
                     LastWrite = DateTime.UtcNow
                 });
 
                 liteCollection.EnsureIndex(doc => doc.Name);
                 liteCollection.EnsureIndex(doc => doc.Version);
+                liteCollection.EnsureIndex(doc => doc.LastWrite);
             }
 
-            Thread.CurrentThread.CurrentCulture = new CultureInfo("cs-CZ");
-            using (LiteDatabase db = new LiteDatabase("C:\\Temp\\Customizing_1.ecdc"))
+            using (LiteDatabase db = new LiteDatabase("C:\\Temp\\bla.db"))
             {
                 LiteCollection<PropertyDocument<GlobalSettingsData>> collection = db.GetCollection<PropertyDocument<GlobalSettingsData>>("PropertyDocuments");
-                var blub = collection.FindAll().ToList();
-                var bla = collection.FindOne(x => x.Name == "GlobalSettings" && x.Version == 0);
+                collection.EnsureIndex("CombiIndex", "$.Name + '_' + $.Version", true);
+                collection.EnsureIndex("ModifiedIndex", "[$.Name, $.LastWrite, $.Version]");
+                
+                //var blub = collection.Find(x => x.Name == "GlobalStyleSettings").ToList();
+                //var bla = collection.FindOne(x => x.Name == "GlobalStyleSettings" && x.Version == 1);
+                var bla = collection.FindOne(Query.EQ("CombiIndex", new BsonValue("GlobalStyleSettings_1")), shallowMode: true);
+                //var bla = collection.Max("ModifiedIndex");
+                //bool exists = collection.Exists(Query.GT("ModifiedIndex",
+                //    new BsonArray(new[]
+                //    {
+                //        new BsonValue("GlobalStyleSettings_0"),
+                //        new BsonValue(DateTime.UtcNow - TimeSpan.FromMinutes(30))
+                //    })));
+                //IEnumerable<BsonDocument> find = db.Engine.Find("PropertyDocuments", Query.EQ("CombiIndex", new BsonValue("GlobalStyleSettings_1"))).ToList();
             }
+
+            //Thread.CurrentThread.CurrentCulture = new CultureInfo("cs-CZ");
+            //using (LiteDatabase db = new LiteDatabase("C:\\Temp\\Customizing_1.ecdc"))
+            //{
+            //    LiteCollection<PropertyDocument<GlobalSettingsData>> collection = db.GetCollection<PropertyDocument<GlobalSettingsData>>("PropertyDocuments");
+            //    var blub = collection.FindAll().ToList();
+            //    var bla = collection.FindOne(x => x.Name == "GlobalSettings" && x.Version == 0);
+            //}
 
             var timer = new Stopwatch();
             ITest test = new LiteDB_Paging();

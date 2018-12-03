@@ -9,7 +9,7 @@ namespace LiteDB
         /// <summary>
         /// Find for documents in a collection using Query definition
         /// </summary>
-        public IEnumerable<BsonDocument> Find(string collection, Query query, int skip = 0, int limit = int.MaxValue)
+        public IEnumerable<BsonDocument> Find(string collection, Query query, int skip = 0, int limit = int.MaxValue, bool shallowMode = false)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
@@ -32,7 +32,7 @@ namespace LiteDB
                     _log.Write(Logger.QUERY, "{0} :: {1}", collection, query);
 
                     // fill buffer with documents 
-                    cursor.Fetch(_trans, _data, _bsonReader);
+                    cursor.Fetch(_trans, _data, _bsonReader, shallowMode);
                 }
 
                 // returing first documents in buffer
@@ -54,7 +54,7 @@ namespace LiteDB
                             cursor.ReQuery(query.Run(col, _indexer).GetEnumerator());
                         }
 
-                        cursor.Fetch(_trans, _data, _bsonReader);
+                        cursor.Fetch(_trans, _data, _bsonReader, shallowMode);
                     }
 
                     // return documents from buffer

@@ -46,7 +46,7 @@ namespace LiteDB
             }
 
             // if right use index (and left no), force left use filter
-            if (_right.UseIndex)
+            else if (_right.UseIndex)
             {
                 this.UseIndex = true;
                 _left.UseFilter = true;

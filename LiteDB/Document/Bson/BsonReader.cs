@@ -18,23 +18,31 @@ namespace LiteDB
         /// <summary>
         /// Main method - deserialize using ByteReader helper
         /// </summary>
-        public BsonDocument Deserialize(byte[] bson)
+        public BsonDocument Deserialize(byte[] bson, bool shallowMode = false)
         {
-            return this.ReadDocument(new ByteReader(bson));
+            return this.ReadDocument(new ByteReader(bson), shallowMode);
         }
 
         /// <summary>
         /// Read a BsonDocument from reader
         /// </summary>
-        public BsonDocument ReadDocument(ByteReader reader)
+        public BsonDocument ReadDocument(ByteReader reader, bool shallowMode = false, bool ignoreFurtherDocuments = false)
         {
             var length = reader.ReadInt32();
             var end = reader.Position + length - 5;
+            if (shallowMode && ignoreFurtherDocuments)
+            {
+                reader.Position = end + 1;
+                return BsonValue.Null.AsDocument;
+            }
+
+            if (shallowMode)
+                ignoreFurtherDocuments = true;
             var obj = new BsonDocument();
 
             while (reader.Position < end)
             {
-                var value = this.ReadElement(reader, out string name);
+                var value = this.ReadElement(reader, shallowMode, ignoreFurtherDocuments, out string name);
                 obj.RawValue[name] = value;
             }
 
@@ -46,7 +54,7 @@ namespace LiteDB
         /// <summary>
         /// Read an BsonArray from reader
         /// </summary>
-        public BsonArray ReadArray(ByteReader reader)
+        public BsonArray ReadArray(ByteReader reader, bool shallowMode = false, bool ignoreFurtherDocuments = false)
         {
             var length = reader.ReadInt32();
             var end = reader.Position + length - 5;
@@ -54,7 +62,7 @@ namespace LiteDB
 
             while (reader.Position < end)
             {
-                var value = this.ReadElement(reader, out string name);
+                var value = this.ReadElement(reader, shallowMode, ignoreFurtherDocuments, out string name);
                 arr.Add(value);
             }
 
@@ -66,7 +74,7 @@ namespace LiteDB
         /// <summary>
         /// Reads an element (key-value) from an reader
         /// </summary>
-        private BsonValue ReadElement(ByteReader reader, out string name)
+        private BsonValue ReadElement(ByteReader reader, bool shallowMode, bool ignoreFurtherDocuments, out string name)
         {
             var type = reader.ReadByte();
             name = this.ReadCString(reader);
@@ -81,11 +89,11 @@ namespace LiteDB
             }
             else if (type == 0x03) // Document
             {
-                return this.ReadDocument(reader);
+                return this.ReadDocument(reader, shallowMode, ignoreFurtherDocuments) ?? BsonValue.Null;
             }
             else if (type == 0x04) // Array
             {
-                return this.ReadArray(reader);
+                return this.ReadArray(reader, shallowMode, ignoreFurtherDocuments);
             }
             else if (type == 0x05) // Binary
             {
